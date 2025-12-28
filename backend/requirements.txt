@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+yt-dlp
+faster-whisper
+ffmpeg-python
+python-dotenv
+pydantic
+google-generativeai
+Pillow
+sqlmodel
