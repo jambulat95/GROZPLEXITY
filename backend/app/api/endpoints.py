@@ -14,6 +14,7 @@ from app.services.generator import GeneratorService
 from app.services.profile_builder import ProfileBuilderService
 from app.core.db import get_session
 from app.models import UserProfile, VideoAnalysis
+from app.api.deps import get_current_user_optional
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -55,6 +56,16 @@ class ProfileResponse(BaseModel):
     videos_count: int
     videos: List[Dict]
 
+class VideoResponse(BaseModel):
+    status: str
+    video_id: int
+    username: str
+    transcript_text: str  # Will be empty if not stored
+    style_passport: Optional[Dict[str, Any]] = None
+    meta_stats: Optional[Dict[str, Any]] = None
+    youtube_url: str
+    title: str
+
 # Dependencies
 @lru_cache()
 def get_transcriber_service():
@@ -79,6 +90,7 @@ def get_profile_builder_service():
 def analyze_video(
     request: AnalyzeRequest,
     session: Session = Depends(get_session),
+    current_user: Optional[UserProfile] = Depends(get_current_user_optional),
     downloader: DownloaderService = Depends(get_downloader_service),
     video_processor: VideoProcessingService = Depends(get_video_processing_service),
     transcriber: TranscriberService = Depends(get_transcriber_service),
@@ -121,16 +133,26 @@ def analyze_video(
             frames_dir=frames_dir,
             stats=video_stats,
             video_url=request.url,
-            session=session
+            session=session,
+            current_user_id=current_user.id if current_user else None
         )
         
-        if "error" in analysis_result and "passport" not in analysis_result:
-             raise Exception(analysis_result["error"])
-             
+        # Check if analysis failed
+        if "error" in analysis_result:
+            error_msg = analysis_result.get("error", "Unknown error during analysis")
+            logger.error(f"Analysis failed: {error_msg}")
+            raise Exception(f"Video analysis failed: {error_msg}")
+        
         db_video_id = analysis_result.get("video_id")
         db_user_id = analysis_result.get("user_id")
         username = analysis_result.get("username")
         style_passport = analysis_result.get("passport")
+        
+        # Validate that we have required fields
+        if not db_video_id or not username:
+            error_msg = analysis_result.get("error", "Analysis completed but missing required fields")
+            logger.error(f"Analysis incomplete: video_id={db_video_id}, username={username}")
+            raise Exception(f"Video analysis incomplete: {error_msg}")
 
         # 5. Update Master Profile
         logger.info("Step 5/5: Updating Master Profile...")
@@ -139,10 +161,13 @@ def analyze_video(
 
         logger.info("Analysis flow completed successfully.")
         
+        # Use current user's username instead of uploader_name
+        response_username = current_user.username if current_user else username
+        
         return AnalyzeResponse(
             status="success",
             video_id=db_video_id,
-            username=username,
+            username=response_username,
             transcript_text=transcript_result["text"],
             segments=transcript_result["segments"],
             paths=Paths(
@@ -248,5 +273,52 @@ def refresh_profile(
         master_profile=user.master_profile,
         videos_count=len(videos),
         videos=videos
+    )
+
+@router.get("/video/{video_id}", response_model=VideoResponse)
+def get_video_analysis(
+    video_id: int,
+    session: Session = Depends(get_session)
+):
+    """
+    Get full video analysis by video ID.
+    Returns statistics, transcript (if available), and style analysis.
+    """
+    logger.info(f"Received request for video ID: {video_id}")
+    
+    # Find video in database
+    video = session.get(VideoAnalysis, video_id)
+    if not video:
+        logger.warning(f"Video with ID {video_id} not found")
+        raise HTTPException(status_code=404, detail=f"Video with ID {video_id} not found")
+    
+    # Get user for username
+    user = session.get(UserProfile, video.user_id)
+    if not user:
+        logger.warning(f"User with ID {video.user_id} not found for video {video_id}")
+        raise HTTPException(status_code=404, detail="User not found for this video")
+    
+    # Prepare response data
+    # Note: transcript_text is not stored in DB, so we return empty string
+    # meta_stats comes from video.stats
+    meta_stats = video.stats.copy() if video.stats else {}
+    # Ensure title is in meta_stats
+    if video.title and "title" not in meta_stats:
+        meta_stats["title"] = video.title
+    
+    # style_passport comes from video.analysis_result
+    style_passport = video.analysis_result if video.analysis_result else None
+    
+    logger.info(f"Successfully retrieved video {video_id} for user {user.username}")
+    
+    return VideoResponse(
+        status="success",
+        video_id=video.id,
+        username=user.username,
+        transcript_text="",  # Transcript is not stored in DB
+        style_passport=style_passport,
+        meta_stats=meta_stats,
+        youtube_url=video.youtube_url,
+        title=video.title
     )
 

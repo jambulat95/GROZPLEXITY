@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.api.endpoints import router as api_router, get_transcriber_service
+from app.api.auth import router as auth_router
 from app.core.config import settings
 from app.core.logging import setup_logging
 from app.core.db import create_db_and_tables
@@ -29,6 +30,7 @@ app.add_middleware(
 # e.g. http://localhost:8000/temp/video.mp4
 app.mount("/temp", StaticFiles(directory=settings.TEMP_DIR), name="temp")
 
+app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(api_router, prefix="/api/v1")
 
 @app.on_event("startup")

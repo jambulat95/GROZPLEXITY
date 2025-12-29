@@ -37,6 +37,16 @@ class VideoProcessingService:
         Returns path to the frames directory.
         """
         frames_dir = settings.TEMP_DIR / "frames" / video_id
+        
+        # Clean up old frames if directory exists
+        if frames_dir.exists():
+            logger.info(f"Cleaning up old frames in {frames_dir}")
+            for old_frame in frames_dir.glob("*.jpg"):
+                try:
+                    old_frame.unlink()
+                except Exception as e:
+                    logger.warning(f"Failed to delete old frame {old_frame}: {e}")
+        
         frames_dir.mkdir(parents=True, exist_ok=True)
         
         output_pattern = str(frames_dir / "frame_%04d.jpg")

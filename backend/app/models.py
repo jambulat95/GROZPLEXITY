@@ -6,6 +6,8 @@ from sqlalchemy import Text
 class UserProfile(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     username: str = Field(index=True, unique=True)
+    email: Optional[str] = Field(default=None, index=True, unique=True)
+    hashed_password: Optional[str] = None
     master_profile: Dict = Field(default={}, sa_column=Column(JSON))
     last_updated: datetime = Field(default_factory=datetime.utcnow)
     

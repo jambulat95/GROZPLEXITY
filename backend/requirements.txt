@@ -8,3 +8,8 @@ pydantic
 google-generativeai
 Pillow
 sqlmodel
+passlib[bcrypt]
+python-jose[cryptography]
+python-multipart
+groq
+openai
