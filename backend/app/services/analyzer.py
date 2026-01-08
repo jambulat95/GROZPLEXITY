@@ -19,7 +19,7 @@ class AnalyzerService:
         else:
             genai.configure(api_key=api_key)
             self.model = genai.GenerativeModel(
-                'models/gemini-2.0-flash',
+                'models/gemini-2.5-flash',
                 generation_config=genai.GenerationConfig(
                     response_mime_type="application/json"
                 )

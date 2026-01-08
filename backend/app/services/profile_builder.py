@@ -1,4 +1,4 @@
-from groq import Groq
+import google.generativeai as genai
 import logging
 import json
 import time
@@ -11,22 +11,23 @@ logger = logging.getLogger(__name__)
 
 class ProfileBuilderService:
     def __init__(self):
-        api_key = settings.GROQ_API_KEY
+        api_key = settings.GOOGLE_API_KEY
         if not api_key:
-            logger.warning("GROQ_API_KEY is not set. ProfileBuilderService will fail if called.")
-            self.client = None
+            logger.warning("GOOGLE_API_KEY is not set. ProfileBuilderService will fail if called.")
         else:
-            self.client = Groq(api_key=api_key)
-            logger.info("Groq client initialized")
+            genai.configure(api_key=api_key)
+            self.model = genai.GenerativeModel(
+                'models/gemini-2.5-flash',
+                generation_config=genai.GenerationConfig(
+                    response_mime_type="application/json"
+                )
+            )
+            logger.info("Gemini client initialized for profile building")
 
     def update_master_profile(self, user_id: int, session: Session):
         """
-        Synthesizes a 'Master Profile' (DNA of style) based on all analyzed videos of the author using Groq.
+        Synthesizes a 'Master Profile' (DNA of style) based on all analyzed videos of the author using Gemini.
         """
-        if not self.client:
-            logger.error("Groq client not initialized")
-            return
-            
         user = session.get(UserProfile, user_id)
         if not user:
             logger.error(f"User not found: {user_id}")
@@ -65,7 +66,6 @@ class ProfileBuilderService:
         
         You are an expert AI Analyst specializing in Creator Economy.
         Your task is to synthesize a "Master Style DNA" (UserProfile) for a creator based on the analysis of their videos.
-        You usually answer in JSON format.
         
         Creator: {user.username}
         Analyzed Videos: {json.dumps(history_summary, indent=2, ensure_ascii=False)}
@@ -88,23 +88,8 @@ class ProfileBuilderService:
         max_attempts = 2
         for attempt in range(max_attempts):
             try:
-                completion = self.client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "You are an expert AI analyst. You usually answer in JSON format."
-                        },
-                        {
-                            "role": "user",
-                            "content": system_instruction
-                        }
-                    ],
-                    temperature=0.3,
-                    response_format={"type": "json_object"}
-                )
-                
-                response_text = completion.choices[0].message.content.strip()
+                response = self.model.generate_content(system_instruction)
+                response_text = response.text.strip()
                 
                 # Cleanup markdown if present
                 if response_text.startswith("```json"):
@@ -126,7 +111,7 @@ class ProfileBuilderService:
                 is_rate_limit = "429" in error_str or "quota" in error_str.lower() or "rate limit" in error_str.lower()
                 
                 if is_rate_limit and attempt < max_attempts - 1:
-                    logger.warning(f"Groq API 429 error (attempt {attempt + 1}/{max_attempts}). Retrying in 10s...")
+                    logger.warning(f"Gemini API 429 error (attempt {attempt + 1}/{max_attempts}). Retrying in 10s...")
                     time.sleep(10)
                     continue
                 else:

@@ -1,4 +1,4 @@
-from groq import Groq
+import google.generativeai as genai
 import logging
 import json
 import time
@@ -10,23 +10,25 @@ logger = logging.getLogger(__name__)
 
 class GeneratorService:
     def __init__(self):
-        api_key = settings.GROQ_API_KEY
+        api_key = settings.GOOGLE_API_KEY
         if not api_key:
-            logger.warning("GROQ_API_KEY is not set. GeneratorService will fail if called.")
-            self.client = None
+            logger.warning("GOOGLE_API_KEY is not set. GeneratorService will fail if called.")
         else:
-            self.client = Groq(api_key=api_key)
-            logger.info("Groq client initialized")
+            genai.configure(api_key=api_key)
+            self.model = genai.GenerativeModel(
+                'models/gemini-2.5-flash',
+                generation_config=genai.GenerationConfig(
+                    response_mime_type="application/json"
+                )
+            )
+            logger.info("Gemini client initialized for script generation")
 
     def generate_script(self, username: str, topic: str, session: Session) -> dict:
         """
-        Generates a new video script based on the author's Master Profile from DB using Groq.
+        Generates a new video script based on the author's Master Profile from DB using Gemini.
         """
-        if not settings.GROQ_API_KEY:
-             raise ValueError("GROQ_API_KEY is missing in environment variables.")
-
-        if not self.client:
-            raise ValueError("Groq client not initialized")
+        if not settings.GOOGLE_API_KEY:
+             raise ValueError("GOOGLE_API_KEY is missing in environment variables.")
 
         # Find user and master profile
         statement = select(UserProfile).where(UserProfile.username == username)
@@ -55,7 +57,6 @@ class GeneratorService:
         
         You are a top-tier Reels/Shorts screenwriter acting as the creator '{username}'.
         Your task is to write a VIRAL script on the topic: '{topic}'.
-        You usually answer in JSON format.
         
         You MUST strictly follow your own 'DNA' described in your Master Profile:
         {json.dumps(user.master_profile, indent=2, ensure_ascii=False)}
@@ -80,25 +81,11 @@ class GeneratorService:
         for attempt in range(max_attempts):
             try:
                 start_time = time.time()
-                completion = self.client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "You are an expert screenwriter. You usually answer in JSON format."
-                        },
-                        {
-                            "role": "user",
-                            "content": system_instruction
-                        }
-                    ],
-                    temperature=0.7,
-                    response_format={"type": "json_object"}
-                )
+                response = self.model.generate_content(system_instruction)
                 duration = time.time() - start_time
                 logger.info(f"Script generation completed in {duration:.2f}s")
                 
-                response_text = completion.choices[0].message.content.strip()
+                response_text = response.text.strip()
                 
                 # Cleanup markdown if present
                 if response_text.startswith("```json"):
@@ -113,9 +100,9 @@ class GeneratorService:
                 is_rate_limit = "429" in error_str or "quota" in error_str.lower() or "rate limit" in error_str.lower()
                 
                 if is_rate_limit and attempt < max_attempts - 1:
-                    logger.warning(f"Groq API 429 error (attempt {attempt + 1}/{max_attempts}). Retrying in 10s...")
+                    logger.warning(f"Gemini API 429 error (attempt {attempt + 1}/{max_attempts}). Retrying in 10s...")
                     time.sleep(10)
                     continue
                 else:
-                    logger.error(f"Groq API Error (Generation): {e}")
+                    logger.error(f"Gemini API Error (Generation): {e}")
                     raise Exception(f"Failed to generate script: {e}")

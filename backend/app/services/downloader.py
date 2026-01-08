@@ -3,9 +3,31 @@ from pathlib import Path
 import logging
 import threading
 import time
+from urllib.parse import urlparse
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+def detect_platform(url: str) -> str:
+    """
+    Detects the platform from URL.
+    Returns: 'YouTube', 'Instagram', 'TikTok', 'Unknown'
+    """
+    parsed = urlparse(url)
+    domain = parsed.netloc.lower()
+    
+    if 'youtube.com' in domain or 'youtu.be' in domain:
+        return 'YouTube'
+    elif 'instagram.com' in domain:
+        return 'Instagram'
+    elif 'tiktok.com' in domain:
+        return 'TikTok'
+    elif 'facebook.com' in domain or 'fb.com' in domain:
+        return 'Facebook'
+    elif 'twitter.com' in domain or 'x.com' in domain:
+        return 'Twitter/X'
+    else:
+        return 'Unknown'
 
 class DownloaderService:
     # Class-level locks to prevent concurrent downloads of the same video
@@ -109,6 +131,9 @@ class DownloaderService:
                     with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
                         info = ydl.extract_info(url, download=False)
                 
+                # Detect platform from URL
+                platform = detect_platform(url)
+                
                 metadata = {
                     "video_id": video_id,
                     "video_path": file_path,
@@ -118,6 +143,7 @@ class DownloaderService:
                     "like_count": info.get('like_count', 0) or 0,
                     "comment_count": info.get('comment_count', 0) or 0,
                     "duration": info.get('duration', 0) or 0,
+                    "platform": platform,  # Add platform to metadata
                 }
                 
                 logger.info(f"Metadata extracted: {metadata['view_count']} views, {metadata['like_count']} likes")

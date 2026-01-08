@@ -114,7 +114,8 @@ def analyze_video(
             "comment_count": download_result.get("comment_count", 0),
             "uploader": download_result.get("uploader", "Unknown"),
             "title": download_result.get("title", "Unknown"),
-            "duration": download_result.get("duration", 0)
+            "duration": download_result.get("duration", 0),
+            "platform": download_result.get("platform", "Unknown")  # Add platform to stats
         }
         
         # 2. Extract
@@ -226,7 +227,9 @@ def get_profile(
             "id": v.id,
             "title": v.title,
             "url": v.youtube_url,
-            "views": v.stats.get("view_count", 0),
+            "views": v.stats.get("view_count", 0) if v.stats else 0,
+            "likes": v.stats.get("like_count", 0) if v.stats else 0,
+            "platform": v.stats.get("platform", "Unknown") if v.stats else "Unknown",
             "created_at": v.created_at
         })
         
@@ -264,7 +267,9 @@ def refresh_profile(
             "id": v.id,
             "title": v.title,
             "url": v.youtube_url,
-            "views": v.stats.get("view_count", 0),
+            "views": v.stats.get("view_count", 0) if v.stats else 0,
+            "likes": v.stats.get("like_count", 0) if v.stats else 0,
+            "platform": v.stats.get("platform", "Unknown") if v.stats else "Unknown",
             "created_at": v.created_at
         })
         

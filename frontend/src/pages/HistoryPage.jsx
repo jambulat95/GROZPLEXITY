@@ -175,7 +175,7 @@ const HistoryPage = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2 + index * 0.1 }}
-              className="glass-card overflow-hidden group hover:neon-glow transition-all cursor-pointer"
+              className="glass-card overflow-hidden group hover:neon-glow transition-all cursor-pointer flex flex-col h-full"
               onClick={() => handleVideoClick(video.id)}
             >
               {/* Video Thumbnail */}
@@ -194,40 +194,44 @@ const HistoryPage = () => {
               </div>
 
               {/* Card Content */}
-              <div className="p-6">
-                <h3 className="text-xl font-bold text-white mb-3 group-hover:text-neon transition-colors">
-                  <span className="line-clamp-2 block">{video.title}</span>
+              <div className="p-6 flex flex-col h-full">
+                {/* Title */}
+                <h3 className="text-lg font-bold text-white mb-3 group-hover:text-neon transition-colors line-clamp-2 min-h-[3rem]">
+                  {video.title || 'Без названия'}
                 </h3>
                 
-                <div className="flex items-center gap-4 text-sm text-gray-400 mb-4">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4" />
-                    <span>{formatDate(video.created_at)}</span>
-                  </div>
+                {/* Date */}
+                <div className="flex items-center gap-2 text-sm text-gray-400 mb-4">
+                  <Calendar className="w-4 h-4" />
+                  <span>{formatDate(video.created_at)}</span>
                 </div>
 
-                {/* Real Metrics */}
-                <div className="grid grid-cols-2 gap-4 mb-4">
+                {/* Metrics - Views and Likes */}
+                <div className="flex items-center justify-between mb-4 flex-shrink-0">
                   <div className="flex items-center gap-2">
-                    <Eye className="w-4 h-4 text-neon" />
+                    <Eye className="w-4 h-4 text-neon flex-shrink-0" />
                     <div>
                       <p className="text-xs text-gray-500">Просмотры</p>
-                      <p className="text-sm font-bold text-white">{formatNumber(video.views)}</p>
+                      <p className="text-sm font-bold text-white">{formatNumber(video.views || 0)}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Heart className="w-4 h-4 text-neon" />
+                    <Heart className="w-4 h-4 text-neon flex-shrink-0" />
                     <div>
                       <p className="text-xs text-gray-500">Лайки</p>
-                      <p className="text-sm font-bold text-white">—</p>
+                      <p className="text-sm font-bold text-white">
+                        {video.likes !== undefined && video.likes !== null && video.likes > 0 
+                          ? formatNumber(video.likes) 
+                          : '—'}
+                      </p>
                     </div>
                   </div>
                 </div>
 
-                {/* Open Button */}
-                <div className="w-full primary-btn py-3 flex items-center justify-center gap-2 text-sm pointer-events-none">
+                {/* Open Button - Always at bottom */}
+                <div className="mt-auto w-full primary-btn py-3 flex items-center justify-center gap-2 text-sm pointer-events-none">
                   <ArrowRight className="w-4 h-4" />
-                  Открыть разбор
+                  ОТКРЫТЬ РАЗБОР
                 </div>
               </div>
             </motion.div>
